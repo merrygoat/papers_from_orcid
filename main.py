@@ -62,7 +62,9 @@ def output_works(works: list[dict], record: dict, output_path: str):
         output_file.write(f"{name} - {identifier}\n")
     work_titles = []
     for work in works:
-        work_titles.append(work["work-summary"][0]["title"]["title"]["value"])
+        title = work["work-summary"][0]["title"]["title"]["value"]
+        year = work["work-summary"][0]["publication-date"]["year"]["value"]
+        work_titles.append(f"{title} - {year}")
     with open(output_path, 'a') as output_file:
         for title in work_titles:
             output_file.write(f"{title}\n")
