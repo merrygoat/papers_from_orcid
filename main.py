@@ -1,5 +1,6 @@
 import yaml
 import orcid
+from thefuzz import fuzz
 
 
 def main():
@@ -16,13 +17,16 @@ def main():
 
     for identifier in orcids:
         record = api.read_record_public(identifier, 'record', token)
-        works = api.read_record_public(identifier, 'works', token)
+        works = api.read_record_public(identifier, 'works', token)["group"]
+        works = filter_works_by_date(works, publication_year)
+        works = remove_duplicates(works)
         output_works(works, record, output_path)
 
 
 def write_output_header(output_path: str, publication_year: int):
     with open(output_path, 'w') as output_file:
-        output_file.write(f"List of publications from orcids since 01/01/{publication_year}\n\n")
+        output_file.write(f"List of publications from selected ORCIDS from https://orcid.org/ "
+                          f"since 01/01/{publication_year}\n\n")
 
 
 def read_orcids(file_name: str) -> list[str]:
@@ -32,16 +36,33 @@ def read_orcids(file_name: str) -> list[str]:
     return orcids
 
 
-def output_works(works: dict, record: dict, output_path: str):
+def filter_works_by_date(works: list[dict], year: int) -> list[dict]:
+    filtered_works = []
+    for work in works:
+        if int(work["work-summary"][0]["publication-date"]["year"]["value"]) >= year:
+            filtered_works.append(work)
+    return filtered_works
+
+
+def remove_duplicates(works: list[dict]) -> list[dict]:
+    filtered_works = []
+    while works:
+        work = works.pop()
+        distances = [fuzz.ratio(work["work-summary"][0]["title"]["title"]["value"],
+                                other_work["work-summary"][0]["title"]["title"]["value"]) for other_work in works]
+        if not distances or max(distances) < 90:
+            filtered_works.append(work)
+    return filtered_works
+
+
+def output_works(works: list[dict], record: dict, output_path: str):
     with open(output_path, 'a') as output_file:
         name = f'{record["person"]["name"]["given-names"]["value"]} {record["person"]["name"]["family-name"]["value"]}'
         identifier = record["orcid-identifier"]["uri"]
         output_file.write(f"{name} - {identifier}\n")
     work_titles = []
-    for work in works["group"]:
-        work_summary = work["work-summary"][0]
-        if int(work_summary["publication-date"]["year"]["value"]) >= 2020:
-            work_titles.append(work_summary["title"]["title"]["value"])
+    for work in works:
+        work_titles.append(work["work-summary"][0]["title"]["title"]["value"])
     with open(output_path, 'a') as output_file:
         for title in work_titles:
             output_file.write(f"{title}\n")
